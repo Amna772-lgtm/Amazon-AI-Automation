@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": false,
+    "types": ["node", "jest", "multer"]
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.spec.ts"]
+}

@@ -1,0 +1,13 @@
+Product name,Amazon URL,Category,Notes
+Stainless steel mug,https://www.amazon.com/Stainless-Steel-Mug/dp/B08N5WRWNW/ref=sr_1_1?keywords=mug,Kitchen,valid US
+Same mug with tracking params,https://amazon.com/dp/b08n5wrwnw?psc=1&th=1,Kitchen,duplicate of row 2
+Silicone baking mat,https://www.amazon.com/gp/product/B07XJPY6ZQ,Kitchen,valid US (gp/product)
+Mug on Amazon Germany,https://www.amazon.de/dp/B08N5WRWNW,Kitchen,valid DE (same ASIN other marketplace)
+Garlic press UK,https://www.amazon.co.uk/Garlic-Press/dp/B0C1234567/,Kitchen,valid GB
+Search results page,https://www.amazon.com/s?k=spatula,Kitchen,invalid - no ASIN
+Short link,https://amzn.to/3xYzAbC,Kitchen,invalid - short link
+Competitor listing,https://www.ebay.com/itm/1234567890,Kitchen,invalid - not Amazon
+Knife set India,https://www.amazon.in/gp/aw/d/B09ABCDEFG,Kitchen,valid IN (mobile URL)
+,,,
+Baking mat again,www.amazon.com/dp/B07XJPY6ZQ,Kitchen,duplicate of row 4 (no scheme)
+Cutting board UAE,https://www.amazon.ae/dp/B0AAAAAAAA,Kitchen,valid AE

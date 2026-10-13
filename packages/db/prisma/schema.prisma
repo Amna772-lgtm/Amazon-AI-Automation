@@ -1,0 +1,345 @@
+// Phase 1 schema: identity, tenancy, projects, imports, jobs, audit, integrations, exports.
+// The full multi-phase entity design is in docs/DATABASE.md; later phases add their tables
+// through new migrations. Every tenant-owned table carries `workspaceId` and is covered by
+// the tenant-scoping client extension in src/tenant.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum JobType {
+  IMPORT_FILE
+  PRODUCT_RESEARCH
+  SELLER_CONTACT_RESEARCH
+  EMAIL_OUTREACH
+}
+
+enum FileStatus {
+  UPLOADED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum ImportRowStatus {
+  VALID
+  DUPLICATE
+  INVALID
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
+enum IntegrationProvider {
+  KEEPA
+  AMAZON_SP_API
+  ANTHROPIC
+  OPENAI
+  SMTP
+  GMAIL
+  MICROSOFT
+  EMAIL_VERIFIER
+}
+
+// ---------------------------------------------------------------------------
+// Identity & tenancy
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id         String      @id @default(cuid())
+  name       String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  workspaces Workspace[]
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String
+  passwordHash  String
+  lastLoginAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  memberships   Membership[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  replacedBy String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Workspace {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  /// Workspace-level settings (defaults for agents, retention, etc.)
+  settings       Json          @default("{}")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  memberships    Membership[]
+  invitations    Invitation[]
+  projects       Project[]
+  files          UploadedFile[]
+  importRows     ImportRow[]
+  jobs           Job[]
+  jobLogs        JobLog[]
+  activityLogs   ActivityLog[]
+  integrations   Integration[]
+  exports        Export[]
+
+  @@index([organizationId])
+}
+
+model Membership {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role        Role      @default(MEMBER)
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+model Invitation {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email       String
+  role        Role      @default(MEMBER)
+  tokenHash   String    @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId])
+  @@index([email])
+}
+
+// ---------------------------------------------------------------------------
+// Projects & imports
+// ---------------------------------------------------------------------------
+
+model Project {
+  id          String         @id @default(cuid())
+  workspaceId String
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  archived    Boolean        @default(false)
+  createdById String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  files       UploadedFile[]
+  importRows  ImportRow[]
+  jobs        Job[]
+
+  @@index([workspaceId, archived])
+}
+
+model UploadedFile {
+  id             String      @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId      String
+  project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  originalName   String
+  storageKey     String
+  mimeType       String
+  sizeBytes      Int
+  sha256         String
+  status         FileStatus  @default(UPLOADED)
+  /// Detected columns that contained Amazon URLs
+  urlColumns     String[]    @default([])
+  totalRows      Int         @default(0)
+  validCount     Int         @default(0)
+  duplicateCount Int         @default(0)
+  invalidCount   Int         @default(0)
+  error          String?
+  uploadedById   String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  rows           ImportRow[]
+  jobs           Job[]
+
+  @@index([workspaceId, projectId])
+}
+
+model ImportRow {
+  id              String          @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fileId          String
+  file            UploadedFile    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  /// 1-based row number in the source sheet (header = row 1)
+  rowNumber       Int
+  sourceColumn    String?
+  rawValue        String
+  status          ImportRowStatus
+  asin            String?
+  marketplace     String?
+  canonicalUrl    String?
+  /// "<marketplace>:<asin>" — dedupe key
+  productKey      String?
+  errorCode       String?
+  errorMessage    String?
+  duplicateOfRow  Int?
+  /// Other columns of the source row, preserved for exports
+  extra           Json?
+  createdAt       DateTime        @default(now())
+
+  @@unique([fileId, rowNumber, sourceColumn])
+  @@index([workspaceId, projectId, productKey])
+  @@index([fileId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Background jobs (mirrors BullMQ jobs; source of truth for UI progress)
+// ---------------------------------------------------------------------------
+
+model Job {
+  id           String        @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId    String?
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fileId       String?
+  file         UploadedFile? @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  type         JobType
+  /// Agent registry key for agent jobs (Phase 3+)
+  agentKey     String?
+  queue        String
+  status       JobStatus     @default(QUEUED)
+  total        Int           @default(0)
+  processed    Int           @default(0)
+  failed       Int           @default(0)
+  /// Resume cursor / agent-specific state
+  cursor       Json?
+  payload      Json          @default("{}")
+  result       Json?
+  error        String?
+  attempts     Int           @default(0)
+  /// Number of times the job has been (re-)enqueued; used to build unique BullMQ ids
+  runCount     Int           @default(0)
+  scheduledFor DateTime?
+  createdById  String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  logs         JobLog[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, projectId])
+}
+
+model JobLog {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  jobId       String
+  job         Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  level       LogLevel  @default(INFO)
+  message     String
+  data        Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([jobId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Audit, integrations, exports
+// ---------------------------------------------------------------------------
+
+model ActivityLog {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actorId     String?
+  actorEmail  String?
+  action      String
+  entityType  String?
+  entityId    String?
+  metadata    Json?
+  ip          String?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, createdAt])
+}
+
+model Integration {
+  id                   String              @id @default(cuid())
+  workspaceId          String
+  workspace            Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider             IntegrationProvider
+  label                String?
+  /// AES-256-GCM encrypted JSON of secret values (see packages/core/src/crypto.ts)
+  encryptedCredentials String
+  /// Masked hints for display, e.g. { apiKey: "••••1a2b" }
+  credentialHints      Json                @default("{}")
+  config               Json                @default("{}")
+  enabled              Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@unique([workspaceId, provider])
+}
+
+model Export {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId   String?
+  /// e.g. IMPORT_ROWS, SELLER_CONTACTS (Phase 3)
+  type        String
+  format      String
+  fileName    String
+  storageKey  String
+  rowCount    Int
+  filters     Json?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, createdAt])
+}

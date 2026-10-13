@@ -1,0 +1,24 @@
+{
+  "name": "@app/core",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@app/db": "0.1.0",
+    "@app/shared": "0.1.0",
+    "bullmq": "^5.56.0",
+    "exceljs": "^4.4.0",
+    "ioredis": "^5.6.0",
+    "papaparse": "^5.5.0"
+  },
+  "devDependencies": {
+    "@types/papaparse": "^5.3.15",
+    "vitest": "^3.2.0"
+  }
+}

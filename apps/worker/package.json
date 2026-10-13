@@ -1,0 +1,20 @@
+{
+  "name": "@app/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@app/core": "0.1.0",
+    "@app/db": "0.1.0",
+    "@app/shared": "0.1.0",
+    "bullmq": "^5.56.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

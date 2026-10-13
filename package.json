@@ -1,0 +1,40 @@
+{
+  "name": "amazon-research-outreach",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI-powered Amazon product research, seller contact research and B2B outreach SaaS",
+  "workspaces": [
+    "packages/shared",
+    "packages/db",
+    "packages/agents",
+    "packages/core",
+    "apps/api",
+    "apps/worker",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "build:packages": "npm run build -w @app/shared -w @app/db -w @app/agents -w @app/core",
+    "build": "npm run build:packages && npm run build -w @app/api -w @app/worker -w @app/web",
+    "db:generate": "npm run generate -w @app/db",
+    "db:migrate": "npm run migrate:dev -w @app/db",
+    "db:deploy": "npm run migrate:deploy -w @app/db",
+    "db:seed": "npm run seed -w @app/db",
+    "dev": "npm run build:packages && concurrently -k -n api,worker,web -c blue,magenta,green \"npm run dev -w @app/api\" \"npm run dev -w @app/worker\" \"npm run dev -w @app/web\"",
+    "start": "concurrently -k -n api,worker,web -c blue,magenta,green \"npm run start -w @app/api\" \"npm run start -w @app/worker\" \"npm run start -w @app/web\"",
+    "start:fresh": "npm run build && npm run start",
+    "test": "npm run build:packages && npm run test -w @app/shared -w @app/core -w @app/agents -w @app/api -w @app/web",
+    "test:e2e": "npm run test:e2e -w @app/api",
+    "test:ui": "npm run test:ui -w @app/web",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "concurrently": "^9.1.0",
+    "typescript": "^5.8.3"
+  }
+}

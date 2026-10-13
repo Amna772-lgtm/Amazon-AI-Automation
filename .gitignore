@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.next/
+coverage/
+storage/
+*.tsbuildinfo
+.env
+.env.local
+apps/web/test-results/
+apps/web/playwright-report/
+docs/
+prompt.txt
